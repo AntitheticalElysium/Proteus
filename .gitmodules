@@ -1,0 +1,3 @@
+[submodule "vendor/sae_entities"]
+	path = vendor/sae_entities
+	url = https://github.com/javiferran/sae_entities

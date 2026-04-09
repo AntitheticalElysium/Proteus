@@ -205,3 +205,23 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# === Proteus Phase 1 ===
+# Cached activations from upstream's pipeline (multi-GB memory-mapped files)
+vendor/sae_entities/dataset/cached_activations/
+
+# Local data and results directories (not yet populated; reserved for Phase 2+)
+data/
+results/
+
+# Generated artifacts
+*.npz
+*.dat
+*.pdf
+# (we keep *.png unignored — analysis plots committed to results/ are useful)
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Hugging Face token / env file
+.env
