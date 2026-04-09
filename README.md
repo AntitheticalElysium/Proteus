@@ -28,8 +28,9 @@ Proteus/
 ├── vendor/sae_entities/       # submodule — Ferrando's pipeline + data
 ├── src/proteus/               # empty package skeleton (populated in Phase 2)
 ├── scripts/
-│   ├── 00_smoke_test.py       # model load + shape + VRAM gate
-│   ├── patch_upstream.sh      # idempotent IT-model patches
+│   ├── 00_smoke_test.py            # model load + shape + VRAM gate
+│   ├── patch_upstream.sh           # idempotent IT-model patches
+│   ├── 00b_generate_entity_prompts.sh  # regenerate IT prompts (upstream gap)
 │   ├── 01_cache_entity_acts.sh
 │   ├── 02_cache_pile_acts.sh
 │   ├── 03_feature_analysis.sh
@@ -69,14 +70,24 @@ and run all cells in order. The notebook handles:
 3. HF authentication via the runtime secret store
 4. Smoke test — loads the model, runs one forward + one generation,
    verifies layer count, residual width, and peak VRAM
-5. Caching entity activations across player / movie / city / song
-6. Caching the Pile baseline activations
-7. Computing per-layer SAE latent separation scores
-8. Running steering experiments at coefficients 20–400
-9. Tar-ing up the lightweight outputs (plots, CSVs, latent rankings) for download
+5. **Generating IT-model entity prompts** — vllm pass over the raw
+   Wikidata entities, producing the per-prompt-type JSON files that
+   `activation_cache.py` consumes (upstream only ships these for base
+   models)
+6. Caching entity activations across player / movie / city / song
+7. Caching the Pile baseline activations
+8. Computing per-layer SAE latent separation scores
+9. Running steering experiments at coefficients 20–400
+10. Tar-ing up the lightweight outputs (plots, CSVs, latent rankings) for download
 
-The cache jobs dominate the wall clock — expect **2–4 hours** for entity
-activations on a T4 and **1–2 hours** for Pile.
+The prompt-generation pass (~5–8h on T4) and the entity cache
+(~2–4h on T4) dominate the wall clock. Total Phase 1 budget on T4:
+**~10–14 hours**; on an A6000 closer to **~4–6 hours**.
+
+For a quick end-to-end pipeline check (does **not** satisfy the
+verification gates), set `MAX_QUERIES=200` in the prompt-generation
+cell. This caps each entity type at 200 entities and finishes the
+generation pass in 10–20 minutes.
 
 ### Verification gates
 
@@ -84,19 +95,42 @@ Phase 1 succeeds when **all** of these hold:
 
 1. **Smoke test passes** — residual shape `[1, seq, 2304]`, peak VRAM
    under the runtime's budget, generation looks coherent.
-2. **Entity activations cached** under
+2. **Entity prompts generated** under
+   `vendor/sae_entities/dataset/processed/entity_prompts/gemma-2-2b-it/`,
+   one JSON per `<entity_type>_<attribute>` (e.g. `player_date_birth.json`)
+   plus the `<entity_type>_is_known.json` files. Each query carries
+   `greedy_completion` and a non-empty `string_matching_sampled_labels`.
+3. **Entity activations cached** under
    `vendor/sae_entities/dataset/cached_activations/entity/gemma-2-2b-it_wikidata_*/`.
-3. **Pile activations cached** under
+4. **Pile activations cached** under
    `vendor/sae_entities/dataset/cached_activations/random/gemma-2-2b-it_pile/`.
-4. **Separation score peaks in the middle layers** (~L8–L14). Exact
+5. **Separation score peaks in the middle layers** (~L8–L14). Exact
    values do not need to match the paper, but the layerwise shape must.
-5. **Steering is causal in both directions**: at least one
+6. **Steering is causal in both directions**: at least one
    (latent, coefficient) combination induces refusal on a previously-answered
    known entity, and at least one combination suppresses refusal on an
    unknown entity.
 
-If gates 4 or 5 fail with the toolchain otherwise working, **stop** and
+If gates 5 or 6 fail with the toolchain otherwise working, **stop** and
 reassess before planning Phase 2.
+
+### Known upstream gaps
+
+- Upstream's `dataset/processed/entity_prompts/` ships pre-processed
+  prompt files only for *base* models (`gemma-2-2b/`, `gemma-2-9b/`,
+  `meta-llama_Llama-3.1-8B/`). For IT variants only the splits file is
+  committed. `00b_generate_entity_prompts.sh` regenerates them.
+- Upstream's `dataset/process_data/` is missing an `__init__.py`;
+  `patch_upstream.sh` creates it so the generation script can be run
+  with `python -m`.
+- Upstream's `filter_known_unknown_wikidata.py` is broken for Gemma
+  (one filter is `pass`, dispatch is hardcoded to Llama-3). It is
+  **not** on Phase 1's critical path — `feature_analysis_utils.py`
+  derives known/unknown labels directly from per-query
+  `string_matching_sampled_labels`, so we skip the filter step.
+- `mech_interp/feature_analysis.py` and `steering_it.py` hardcode
+  their target model alias at the top of the file;
+  `patch_upstream.sh` rewrites those literals to `gemma-2-2b-it`.
 
 ## License
 

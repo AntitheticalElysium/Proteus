@@ -10,6 +10,11 @@
 #   - mech_interp/feature_analysis.py  (line 22)
 #   - mech_interp/steering_it.py       (line 57)
 #
+# Also creates the missing dataset/process_data/__init__.py marker so
+# `python -m dataset.process_data.wikidata.create_wikidata_entity_queries`
+# resolves. Upstream forgot to ship it; without it the relative import
+# `from .check_correctness_wikidata import ...` cannot be resolved.
+#
 # Out-of-Phase-1 scripts (uncertain_features, patching, refusal_analysis,
 # attn_analysis, visualize_latents.ipynb) are intentionally NOT patched —
 # they are not in Phase 1's verification gates. Patch them in Phase 2 if
@@ -48,7 +53,22 @@ patch_line() {
     echo "  [done] ${file##*/}: '${old}' → '${new}'"
 }
 
+ensure_init() {
+    # ensure_init <path>  — create an empty __init__.py if missing.
+    local init="$1/__init__.py"
+    if [[ -f "${init}" ]]; then
+        echo "  [skip] ${init#${UPSTREAM}/}: already exists"
+    else
+        : > "${init}"
+        echo "  [done] ${init#${UPSTREAM}/}: created"
+    fi
+}
+
 echo "Patching upstream sae_entities scripts → ${TARGET_ALIAS}"
 patch_line "${UPSTREAM}/mech_interp/feature_analysis.py" "gemma-2-2b" "${TARGET_ALIAS}"
 patch_line "${UPSTREAM}/mech_interp/steering_it.py" "meta-llama/Llama-3.1-8B" "${TARGET_ALIAS}"
+
+echo "Ensuring missing package markers"
+ensure_init "${UPSTREAM}/dataset/process_data"
+
 echo "Done."

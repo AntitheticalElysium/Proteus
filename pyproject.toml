@@ -60,6 +60,9 @@ dependencies = [
     "einops>=0.8,<1",
     "fancy-einsum>=0.0.3,<1",
     "jaxtyping>=0.2.34,<1",
+    # typeguard is jaxtyping's runtime checker. Upstream pins 2.13.3 because
+    # newer versions (3.x, 4.x) changed the API and break jaxtyping's annotations.
+    "typeguard==2.13.3",
 
     # === SAE library — installed separately by upstream's README step 1 ===
     # Must be compatible with transformer-lens 2.6.0. sae-lens 4.x line works;
@@ -73,6 +76,9 @@ dependencies = [
 
     # === Notebook + IO ===
     "tqdm>=4.66,<5",
+    # colorama is imported by upstream's mech_interp/steering_it.py and utils/utils.py
+    # for ANSI-coloured generation diffs. Required for Phase 1 step 04.
+    "colorama>=0.4.6,<1",
     "ipykernel>=6.29,<7",
     "ipython>=8.27,<9",
     "jupyter>=1.0,<2",
